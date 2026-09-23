@@ -173,12 +173,21 @@ mark{background:#ffe66d;border-radius:3px;padding:0 1px}
 <script>
 (() => {
   const $ = s => document.querySelector(s);
-  const state = { items:[], people:[], me:"", other:"", hits:[], hitIndex:-1 };
+  const state = { items:[], people:[], me:"", other:"", hits:[], hitIndex:-1, query:"" };
 
   function esc(s){
     return String(s ?? "").replace(/[&<>\"']/g, c => ({
       "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
     })[c]);
+  }
+  function reEscape(s){
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  function highlightText(raw, query){
+    const q = String(query || "").trim();
+    if(!q) return esc(raw);
+    const text = String(raw ?? "");
+    return esc(text).replace(new RegExp(reEscape(q), "ig"), m => `<mark>${m}</mark>`);
   }
   function hashColor(s){
     let h=0; for(let i=0;i<s.length;i++) h=s.charCodeAt(i)+((h<<5)-h);
@@ -204,7 +213,7 @@ mark{background:#ffe66d;border-radius:3px;padding:0 1px}
   }
   function parseDateLine(s){
     const t=s.trim();
-    let m=t.match(/^(\d{4})[\/\.\-](\d{1,2})[\/\.\-](\d{1,2})(?:\s*[（(]([^）)]+)[）)])?$/);
+    let m=t.match(/^(\d{4})[./\-](\d{1,2})[./\-](\d{1,2})(?:\s*[（(]([^）)]+)[）)])?$/);
     if(!m) m=t.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日(?:\s*[（(]([^）)]+)[）)])?$/);
     if(!m) return null;
     const y=m[1],mo=String(m[2]).padStart(2,"0"),d=String(m[3]).padStart(2,"0");
@@ -234,17 +243,20 @@ mark{background:#ffe66d;border-radius:3px;padding:0 1px}
       let m=line.match(/^\s*((?:上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?)\t([^\t]+)\t(.*)$/i);
       if(!m) m=line.match(/^\s*((?:上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?)\s{2,}(.+?)\s{2,}(.*)$/i);
       if(!m) m=line.match(/^\s*\[((?:上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?)\]\s*([^:：]+)[:：]\s*(.*)$/i);
+      if(!m) m=line.match(/^\s*(?:\((?:上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?\))?\s*([^:：]+)[:：]\s*(.*)$/i);
 
       if(m){
+        const time = m[1] || m[0].match(/(?:上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?/i)?.[0] || "";
+        const name = (m[2] || m[1] || "").trim();
+        const textBody = (m[3] || "").trim();
         push();
-        current={type:"msg",date:date?.iso||"",time:normalizeTime(m[1]),name:m[2].trim(),text:m[3]||""};
+        current={type:"msg",date:date?.iso||"",time:normalizeTime(time),name:name,text:textBody};
         continue;
       }
 
       if(current){
         current.text += (current.text ? "\n" : "") + line;
       }else if(line.trim()){
-        // export title / saved date / notices
         out.push({type:"system",date:date?.iso||"",text:line.trim()});
       }
     }
@@ -270,10 +282,10 @@ mark{background:#ffe66d;border-radius:3px;padding:0 1px}
   }
   function render(){
     const list=filterConversation();
-    let html="", currentDayShown=null, count=0;
+    const q = state.query || $("#searchInput").value.trim().toLowerCase();
+    let html="", count=0;
     for(const x of list){
       if(x.type==="day"){
-        currentDayShown=x.date;
         html += `<div class="day" id="day-${esc(x.date)}"><span>${esc(x.label)}</span></div>`;
         continue;
       }
@@ -286,7 +298,7 @@ mark{background:#ffe66d;border-radius:3px;padding:0 1px}
       count++;
       const mine=x.name===state.me;
       const mhtml=mediaHTML(x.text);
-      const body=mhtml || esc(x.text);
+      const body = mhtml || highlightText(x.text, q);
       if(mine){
         html += `<div class="row me msg" data-search="${esc((x.text||"").toLowerCase())}">
           <div class="meta">${esc(x.time)}</div>
@@ -301,20 +313,18 @@ mark{background:#ffe66d;border-radius:3px;padding:0 1px}
       }
     }
     if(!count) html=`<div class="empty">沒有找到這兩位之間的訊息。</div>`;
-    $("#chatWrap").innerHTML=html;
-    $("#chatTitle").textContent=state.other || "聊天室";
+    $("#chatWrap").innerHTML = html;
+    $("#chatTitle").textContent = state.other || "聊天室";
     applySearch();
   }
   function applySearch(){
-    const q=$("#searchInput").value.trim().toLowerCase();
+    const q = $("#searchInput").value.trim().toLowerCase();
     const msgs=[...document.querySelectorAll(".msg")];
     state.hits=[];
     for(const el of msgs){
-      const bubble=el.querySelector(".bubble");
-      if(!bubble) continue;
       if(q && (el.dataset.search||"").includes(q)) state.hits.push(el);
     }
-    state.hitIndex=state.hits.length?0:-1;
+    state.hitIndex = state.hits.length ? 0 : -1;
     if(state.hits.length) state.hits[0].scrollIntoView({behavior:"smooth",block:"center"});
   }
   function chooseDefaults(){
@@ -365,6 +375,8 @@ mark{background:#ffe66d;border-radius:3px;padding:0 1px}
     localStorage.setItem("lineViewer.me",state.me);
     $("#setupPage").classList.add("hidden");
     $("#chatPage").classList.remove("hidden");
+    state.query = "";
+    $("#searchInput").value = "";
     render();
     window.scrollTo({top:0});
   });
@@ -372,7 +384,7 @@ mark{background:#ffe66d;border-radius:3px;padding:0 1px}
   $("#resetTop").onclick=()=>location.reload();
   $("#menuBtn").onclick=()=>alert("操作流程：上傳 LINE TXT → 選擇「我」與「對方」→ 生成聊天畫面。所有資料只在本機處理。");
   $("#searchBtn").onclick=()=>{ $("#searchBar").classList.toggle("hidden"); if(!$("#searchBar").classList.contains("hidden")) $("#searchInput").focus(); };
-  $("#searchInput").addEventListener("input",()=>{ render(); });
+  $("#searchInput").addEventListener("input",()=>{ state.query = $("#searchInput").value.trim(); render(); });
   function moveHit(d){
     if(!state.hits.length)return;
     state.hitIndex=(state.hitIndex+d+state.hits.length)%state.hits.length;
