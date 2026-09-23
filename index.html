@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>LINE 聊天紀錄還原器</title>
+<!--
+  Design code attribution:
+  Patent / proprietary identifier: yhn_yu0831
+  This browser-only LINE chat reconstruction tool is provided for personal and project use.
+-->
+<style>
+:root{
+  --line-green:#06c755;
+  --chat-bg:#7e9bc4;
+  --mine:#9bea69;
+  --other:#fff;
+  --ink:#111827;
+  --muted:#64748b;
+  --panel:#fff;
+  --border:#e5e7eb;
+  --shadow:0 6px 24px rgba(15,23,42,.06);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;color:var(--ink);background:#f2f3f5}
+body{line-height:1.5}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.appbar{
+  position:sticky;top:0;z-index:20;height:58px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:env(safe-area-inset-top) 14px 0;
+  background:#fff;border-bottom:1px solid #ececec;
+}
+.appbar .title{font-weight:800;font-size:18px}
+.iconbtn{
+  width:40px;height:40px;border:0;border-radius:12px;
+  background:transparent;font-size:22px;display:grid;place-items:center
+}
+.shell{max-width:880px;margin:0 auto;padding:16px}
+.card{
+  background:#fff;border:1px solid var(--border);border-radius:16px;
+  box-shadow:var(--shadow);padding:18px
+}
+h1{font-size:24px;margin:0 0 18px}
+.step{font-weight:800;margin:16px 0 8px}
+.filebox{
+  display:flex;gap:10px;align-items:center;padding:11px 12px;border:1px solid #cbd5e1;
+  border-radius:10px;background:#fff
+}
+.filebox span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#475569}
+.btn{
+  border:0;border-radius:10px;padding:11px 14px;font-weight:800;background:#111827;color:#fff
+}
+.btn.green{background:var(--line-green);width:100%}
+.btn.soft{background:#eef2f7;color:#111827}
+.select{width:100%;padding:12px;border-radius:9px;border:1px solid #cbd5e1;background:#f8fafc}
+.note{font-size:12px;color:var(--muted);line-height:1.55}
+.bad{color:#b91c1c;font-weight:700}
+.ok{color:#047857;font-weight:700}
+.hidden{display:none!important}
+
+/* chat */
+.chat-page{max-width:720px;margin:0 auto;background:var(--chat-bg);min-height:calc(100dvh - 58px);position:relative}
+.chat-header{
+  position:sticky;top:58px;z-index:15;height:54px;
+  display:grid;grid-template-columns:48px 1fr 48px;align-items:center;
+  background:rgba(255,255,255,.96);backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(0,0,0,.08)
+}
+.chat-header .who{text-align:center;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-wrap{padding:12px 14px 84px}
+.day{text-align:center;margin:14px 0}
+.day span{display:inline-block;background:rgba(74,99,137,.72);color:#fff;font-size:12px;padding:5px 11px;border-radius:999px}
+.row{display:flex;gap:8px;margin:8px 0;align-items:flex-end}
+.row.me{justify-content:flex-end}
+.avatar{
+  width:38px;height:38px;flex:0 0 38px;border-radius:50%;color:white;font-weight:800;
+  display:grid;place-items:center;font-size:16px;box-shadow:0 1px 2px #0002
+}
+.msgcol{max-width:min(74%,540px)}
+.name{font-size:11px;color:#eef6ff;margin:0 0 3px 4px;text-shadow:0 1px 2px #0003}
+.bubble{
+  position:relative;padding:9px 11px;border-radius:16px;background:var(--other);color:#111;
+  white-space:pre-wrap;word-break:break-word;line-height:1.42;box-shadow:0 1px 1px #0001
+}
+.row.me .bubble{background:var(--mine)}
+.meta{font-size:10px;color:#e9f1fb;white-space:nowrap;margin-bottom:2px;text-shadow:0 1px 2px #0004}
+.media-card{
+  min-width:120px;display:flex;align-items:center;gap:8px;font-weight:700
+}
+.media-ico{font-size:18px}
+.call{display:flex;align-items:center;gap:7px}
+.system{
+  text-align:center;color:#eef5ff;font-size:12px;margin:10px 0;text-shadow:0 1px 2px #0004
+}
+.searchbar{
+  position:sticky;top:112px;z-index:14;padding:8px;background:rgba(255,255,255,.96);
+  border-bottom:1px solid #e5e7eb;display:flex;gap:8px
+}
+.searchbar input{flex:1;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px}
+.toolbar{
+  position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  width:min(92vw,680px);display:flex;gap:8px;padding:9px;border-radius:16px;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(10px);box-shadow:0 8px 28px #0003;z-index:25
+}
+.toolbar button{flex:1;border:0;border-radius:10px;padding:10px;background:#eef2f7;font-weight:800}
+mark{background:#ffe66d;border-radius:3px;padding:0 1px}
+.empty{padding:70px 20px;text-align:center;color:#fff}
+.footer-tag{font-size:11px;letter-spacing:.04em;color:#475569;opacity:.8;text-align:center;padding:8px 12px 4px}
+@media(max-width:640px){
+  .shell{padding:10px}.card{border-radius:14px;padding:16px}
+  h1{font-size:22px}.chat-wrap{padding-left:10px;padding-right:10px}.msgcol{max-width:78%}
+}
+@media print{
+  .appbar,.chat-header,.searchbar,.toolbar{display:none!important}
+  body{background:white}.chat-page{max-width:none;min-height:0}.chat-wrap{padding-bottom:10px}
+}
+</style>
+</head>
+<body>
+<header class="appbar">
+  <button class="iconbtn" id="menuBtn" aria-label="選單">☰</button>
+  <div class="title">LINE 聊天紀錄網頁還原器</div>
+  <button class="iconbtn" id="resetTop" aria-label="重新開始">✎</button>
+</header>
+
+<section id="setupPage">
+  <div class="shell">
+    <div class="card">
+      <h1>LINE 聊天紀錄還原器</h1>
+
+      <div class="step">1. 請上傳 LINE 的 .txt 聊天紀錄檔</div>
+      <label class="filebox">
+        <span class="btn soft" style="padding:7px 10px">選擇檔案</span>
+        <span id="fileName">尚未選取檔案</span>
+        <input id="fileInput" type="file" accept=".txt,text/plain" hidden>
+      </label>
+
+      <div id="selectors" class="hidden">
+        <div class="step">2. 選擇哪一個是「我」</div>
+        <select id="meSelect" class="select"></select>
+
+        <div class="step">3. 選擇哪一個是「對方」</div>
+        <select id="otherSelect" class="select"></select>
+
+        <div style="height:14px"></div>
+        <button id="generateBtn" class="btn green">生成聊天畫面</button>
+      </div>
+
+      <p id="status" class="note">聊天檔只在本機瀏覽器解析，不會上傳。</p>
+      <div class="footer-tag">Design code • Patent: yhn_yu0831</div>
+    </div>
+  </div>
+</section>
+
+<section id="chatPage" class="hidden">
+  <div class="chat-page">
+    <div class="chat-header">
+      <button id="backBtn" class="iconbtn" aria-label="返回">‹</button>
+      <div id="chatTitle" class="who">聊天室</div>
+      <button id="searchBtn" class="iconbtn" aria-label="搜尋">⌕</button>
+    </div>
+
+    <div id="searchBar" class="searchbar hidden">
+      <input id="searchInput" placeholder="搜尋對話內容">
+      <button id="prevHit" class="btn soft">上一筆</button>
+      <button id="nextHit" class="btn soft">下一筆</button>
+    </div>
+
+    <div id="chatWrap" class="chat-wrap"></div>
+
+    <div class="toolbar">
+      <button id="jumpTop">最前面</button>
+      <button id="printBtn">列印 / PDF</button>
+      <button id="jumpBottom">最下面</button>
+    </div>
+  </div>
+</section>
+
+<script>
+(() => {
+  const APP_PATENT_ID = 'yhn_yu0831';
+  const $ = s => document.querySelector(s);
+  const state = { items:[], people:[], me:"", other:"", hits:[], hitIndex:-1, query:"" };
+
+  function esc(s){
+    return String(s ?? "").replace(/[&<>\"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    })[c]);
+  }
+  function reEscape(s){
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  function highlightText(raw, query){
+    const q = String(query || "").trim();
+    if(!q) return esc(raw);
+    const text = String(raw ?? "");
+    return esc(text).replace(new RegExp(reEscape(q), "ig"), m => `<mark>${m}</mark>`);
+  }
+  function hashColor(s){
+    let h=0; for(let i=0;i<s.length;i++) h=s.charCodeAt(i)+((h<<5)-h);
+    const hue=Math.abs(h)%360; return `hsl(${hue} 68% 45%)`;
+  }
+  function avatarText(name){
+    const t=(name||"?").trim();
+    return esc([...t][0] || "?");
+  }
+  function normalizeTime(raw){
+    let s=(raw||"").trim();
+    let m=s.match(/^(上午|下午)\s*(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if(m){
+      let h=Number(m[2]); if(m[1]==="下午" && h<12) h+=12; if(m[1]==="上午" && h===12) h=0;
+      return `${String(h).padStart(2,"0")}:${m[3]}`;
+    }
+    m=s.match(/^(AM|PM)\s*(\d{1,2}):(\d{2})(?::\d{2})?$/i);
+    if(m){
+      let h=Number(m[2]); if(m[1].toUpperCase()==="PM"&&h<12)h+=12; if(m[1].toUpperCase()==="AM"&&h===12)h=0;
+      return `${String(h).padStart(2,"0")}:${m[3]}`;
+    }
+    return s;
+  }
+  function parseDateLine(s){
+    const t=s.trim();
+    let m=t.match(/^(\d{4})[./\-](\d{1,2})[./\-](\d{1,2})(?:\s*[（(]([^）)]+)[）)])?$/);
+    if(!m) m=t.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日(?:\s*[（(]([^）)]+)[）)])?$/);
+    if(!m) return null;
+    const y=m[1],mo=String(m[2]).padStart(2,"0"),d=String(m[3]).padStart(2,"0");
+    return {iso:`${y}-${mo}-${d}`,label:t};
+  }
+  function decodeBuffer(buf){
+    const utf8=new TextDecoder("utf-8",{fatal:false}).decode(buf);
+    const bad=(utf8.match(/\uFFFD/g)||[]).length;
+    if(bad===0) return utf8;
+    try{
+      const big5=new TextDecoder("big5",{fatal:false}).decode(buf);
+      const bad2=(big5.match(/\uFFFD/g)||[]).length;
+      return bad2<bad ? big5 : utf8;
+    }catch(e){ return utf8; }
+  }
+  function parseLINE(text){
+    text=text.replace(/^\uFEFF/,"").replace(/\r\n?/g,"\n");
+    const lines=text.split("\n");
+    let date=null, current=null, out=[];
+    const push=()=>{ if(current){ out.push(current); current=null; } };
+
+    for(const rawLine of lines){
+      const line=rawLine.replace(/\u00A0/g," ");
+      const d=parseDateLine(line);
+      if(d){ push(); date=d; out.push({type:"day",date:d.iso,label:d.label}); continue; }
+
+      let m=line.match(/^\s*((?:上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?)\t([^\t]+)\t(.*)$/i);
+      if(!m) m=line.match(/^\s*((?:上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?)\s{2,}(.+?)\s{2,}(.*)$/i);
+      if(!m) m=line.match(/^\s*\[((?:上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?)\]\s*([^:：]+)[:：]\s*(.*)$/i);
+      if(!m) m=line.match(/^\s*(?:\((?:上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?\))?\s*([^:：]+)[:：]\s*(.*)$/i);
+
+      if(m){
+        const time = m[1] || m[0].match(/(?:上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?/i)?.[0] || "";
+        const name = (m[2] || m[1] || "").trim();
+        const textBody = (m[3] || "").trim();
+        push();
+        current={type:"msg",date:date?.iso||"",time:normalizeTime(time),name:name,text:textBody};
+        continue;
+      }
+
+      if(current){
+        current.text += (current.text ? "\n" : "") + line;
+      }else if(line.trim()){
+        out.push({type:"system",date:date?.iso||"",text:line.trim()});
+      }
+    }
+    push();
+    return out;
+  }
+  function mediaHTML(text){
+    const t=(text||"").trim();
+    const photo=/^(\[?照片\]?|<照片>|圖片|Photo)$/i.test(t);
+    const video=/^(\[?影片\]?|<影片>|Video)$/i.test(t);
+    const sticker=/^(\[?貼圖\]?|<貼圖>|Sticker)$/i.test(t);
+    const file=/^(\[?檔案\]?|<檔案>|File)$/i.test(t);
+    const call=t.match(/^(?:☎️?|📞)?\s*(通話時間[:：]?.*)$/);
+    if(photo) return `<div class="media-card"><span class="media-ico">🖼️</span><span>[照片]</span></div>`;
+    if(video) return `<div class="media-card"><span class="media-ico">🎬</span><span>[影片]</span></div>`;
+    if(sticker) return `<div class="media-card"><span class="media-ico">🙂</span><span>[貼圖]</span></div>`;
+    if(file) return `<div class="media-card"><span class="media-ico">📎</span><span>[檔案]</span></div>`;
+    if(call) return `<div class="call"><span>☎️</span><span>${esc(call[1])}</span></div>`;
+    return null;
+  }
+  function filterConversation(){
+    return state.items.filter(x => x.type!=="msg" || x.name===state.me || x.name===state.other);
+  }
+  function render(){
+    const list=filterConversation();
+    const q = state.query || $("#searchInput").value.trim().toLowerCase();
+    let html="", count=0;
+    for(const x of list){
+      if(x.type==="day"){
+        html += `<div class="day" id="day-${esc(x.date)}"><span>${esc(x.label)}</span></div>`;
+        continue;
+      }
+      if(x.type==="system"){
+        if(/^儲存日期|^Saved on|^聊天記錄|^Chat history/i.test(x.text)) continue;
+        html += `<div class="system">${esc(x.text)}</div>`;
+        continue;
+      }
+      if(x.type!=="msg") continue;
+      count++;
+      const mine=x.name===state.me;
+      const mhtml=mediaHTML(x.text);
+      const body = mhtml || highlightText(x.text, q);
+      if(mine){
+        html += `<div class="row me msg" data-search="${esc((x.text||"").toLowerCase())}">
+          <div class="meta">${esc(x.time)}</div>
+          <div class="msgcol"><div class="bubble">${body}</div></div>
+        </div>`;
+      }else{
+        html += `<div class="row msg" data-search="${esc((x.text||"").toLowerCase())}">
+          <div class="avatar" style="background:${hashColor(x.name)}">${avatarText(x.name)}</div>
+          <div class="msgcol"><div class="name">${esc(x.name)}</div><div class="bubble">${body}</div></div>
+          <div class="meta">${esc(x.time)}</div>
+        </div>`;
+      }
+    }
+    if(!count) html=`<div class="empty">沒有找到這兩位之間的訊息。</div>`;
+    $("#chatWrap").innerHTML = html;
+    $("#chatTitle").textContent = state.other || "聊天室";
+    applySearch();
+  }
+  function applySearch(){
+    const q = $("#searchInput").value.trim().toLowerCase();
+    const msgs=[...document.querySelectorAll(".msg")];
+    state.hits=[];
+    for(const el of msgs){
+      if(q && (el.dataset.search||"").includes(q)) state.hits.push(el);
+    }
+    state.hitIndex = state.hits.length ? 0 : -1;
+    if(state.hits.length) state.hits[0].scrollIntoView({behavior:"smooth",block:"center"});
+  }
+  function chooseDefaults(){
+    const opts=state.people.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    $("#meSelect").innerHTML=opts;
+    $("#otherSelect").innerHTML=opts;
+    const remembered=localStorage.getItem("lineViewer.me");
+    if(remembered && state.people.includes(remembered)) $("#meSelect").value=remembered;
+    if(state.people.length>1){
+      const me=$("#meSelect").value;
+      $("#otherSelect").value=state.people.find(x=>x!==me) || state.people[1];
+    }
+  }
+  async function loadFile(file){
+    if(!file) return;
+    $("#fileName").textContent=file.name;
+    $("#status").textContent="正在分析聊天紀錄…";
+    const buf=await file.arrayBuffer();
+    const text=decodeBuffer(buf);
+    state.items=parseLINE(text);
+    state.people=[...new Set(state.items.filter(x=>x.type==="msg").map(x=>x.name).filter(Boolean))];
+    const msgCount=state.items.filter(x=>x.type==="msg").length;
+    if(!msgCount || !state.people.length){
+      $("#selectors").classList.add("hidden");
+      $("#status").innerHTML='<span class="bad">未辨識到 LINE 訊息格式。請使用 LINE「傳送聊天記錄」匯出的 TXT。</span>';
+      return;
+    }
+    chooseDefaults();
+    $("#selectors").classList.remove("hidden");
+    $("#status").innerHTML=`<span class="ok">已辨識 ${msgCount.toLocaleString()} 則訊息、${state.people.length} 位對話人。</span> 可選擇「我」與「對方」。`;
+  }
+
+  $("#fileInput").addEventListener("change",e=>loadFile(e.target.files?.[0]));
+  $("#meSelect").addEventListener("change",()=>{
+    const me=$("#meSelect").value;
+    if($("#otherSelect").value===me) $("#otherSelect").value=state.people.find(x=>x!==me) || me;
+  });
+  $("#otherSelect").addEventListener("change",()=>{
+    const other=$("#otherSelect").value;
+    if($("#meSelect").value===other) $("#meSelect").value=state.people.find(x=>x!==other) || other;
+  });
+  $("#generateBtn").addEventListener("click",()=>{
+    state.me=$("#meSelect").value;
+    state.other=$("#otherSelect").value;
+    if(!state.me || !state.other || state.me===state.other){
+      $("#status").innerHTML='<span class="bad">「我」與「對方」必須選不同的人。</span>'; return;
+    }
+    localStorage.setItem("lineViewer.me",state.me);
+    $("#setupPage").classList.add("hidden");
+    $("#chatPage").classList.remove("hidden");
+    state.query = "";
+    $("#searchInput").value = "";
+    render();
+    window.scrollTo({top:0});
+  });
+  $("#backBtn").onclick=()=>{ $("#chatPage").classList.add("hidden"); $("#setupPage").classList.remove("hidden"); window.scrollTo({top:0}); };
+  $("#resetTop").onclick=()=>location.reload();
+  $("#menuBtn").onclick=()=>alert("操作流程：上傳 LINE TXT → 選擇「我」與「對方」→ 生成聊天畫面。所有資料只在本機處理。");
+  $("#searchBtn").onclick=()=>{ $("#searchBar").classList.toggle("hidden"); if(!$("#searchBar").classList.contains("hidden")) $("#searchInput").focus(); };
+  $("#searchInput").addEventListener("input",()=>{ state.query = $("#searchInput").value.trim(); render(); });
+  function moveHit(d){
+    if(!state.hits.length)return;
+    state.hitIndex=(state.hitIndex+d+state.hits.length)%state.hits.length;
+    state.hits[state.hitIndex].scrollIntoView({behavior:"smooth",block:"center"});
+  }
+  $("#prevHit").onclick=()=>moveHit(-1);
+  $("#nextHit").onclick=()=>moveHit(1);
+  $("#jumpTop").onclick=()=>window.scrollTo({top:0,behavior:"smooth"});
+  $("#jumpBottom").onclick=()=>window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+  $("#printBtn").onclick=()=>window.print();
+  console.info(`Design code • Patent: ${APP_PATENT_ID}`);
+})();
+</script>
+</body>
+</html>
